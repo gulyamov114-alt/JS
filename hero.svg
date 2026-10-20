@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 340" role="img" aria-label="A bowl of food on a table">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f6e7d4"/>
+      <stop offset="1" stop-color="#e9c9a3"/>
+    </linearGradient>
+  </defs>
+  <rect width="600" height="340" fill="url(#bg)"/>
+  <ellipse cx="300" cy="290" rx="190" ry="20" fill="#b98c5e" opacity=".35"/>
+  <path d="M130 170h340a170 130 0 0 1-340 0z" fill="#fff8ef" stroke="#b98c5e" stroke-width="6"/>
+  <ellipse cx="300" cy="170" rx="170" ry="26" fill="#d9a066"/>
+  <circle cx="250" cy="165" r="26" fill="#6b8e4e"/>
+  <circle cx="310" cy="158" r="30" fill="#c0392b"/>
+  <circle cx="360" cy="168" r="22" fill="#e0a82e"/>
+  <circle cx="285" cy="150" r="14" fill="#4f6f3a"/>
+  <path d="M250 120c-12-24 12-30 0-54M300 110c-12-24 12-30 0-54M350 120c-12-24 12-30 0-54" fill="none" stroke="#b98c5e" stroke-width="5" stroke-linecap="round" opacity=".6"/>
+</svg>

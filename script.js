@@ -1,122 +1,190 @@
-const myLibrary = [];
+// ---------------------------------------------------------------------------
+// Gameboard: stores the 9 cells and knows how to place a mark / reset.
+// IIFE (module pattern) -> only one instance can ever exist.
+// ---------------------------------------------------------------------------
+const Gameboard = (function () {
+  const SIZE = 9;
+  let board = Array(SIZE).fill("");
 
-// --- Book constructor -------------------------------------------------------
-function Book(title, author, pages, read) {
-  if (!new.target) {
-    throw Error("You must use the 'new' operator to call the constructor");
-  }
-  this.id = crypto.randomUUID();
-  this.title = title;
-  this.author = author;
-  this.pages = pages;
-  this.read = read;
+  const getBoard = () => [...board]; // copy, so the outside can't change it
+
+  const placeMark = (index, mark) => {
+    const isValidIndex = Number.isInteger(index) && index >= 0 && index < SIZE;
+    if (!isValidIndex || board[index] !== "") return false; // taken or invalid
+    board[index] = mark;
+    return true;
+  };
+
+  const reset = () => {
+    board = Array(SIZE).fill("");
+  };
+
+  return { getBoard, placeMark, reset };
+})();
+
+// ---------------------------------------------------------------------------
+// Player factory: many players can be created.
+// ---------------------------------------------------------------------------
+function createPlayer(name, mark) {
+  return { name, mark };
 }
 
-Book.prototype.toggleRead = function () {
-  this.read = !this.read;
-};
+// ---------------------------------------------------------------------------
+// GameController: game flow, turns, win / tie detection. No DOM here,
+// so the whole game can be played from the console:
+//   GameController.start("Ann", "Bob");
+//   GameController.playRound(4);
+// ---------------------------------------------------------------------------
+const GameController = (function () {
+  const WIN_LINES = [
+    [0, 1, 2], [3, 4, 5], [6, 7, 8], // rows
+    [0, 3, 6], [1, 4, 7], [2, 5, 8], // columns
+    [0, 4, 8], [2, 4, 6],            // diagonals
+  ];
 
-// --- Library logic (data only, no DOM) --------------------------------------
-function addBookToLibrary(title, author, pages, read) {
-  const book = new Book(title, author, pages, read);
-  myLibrary.push(book);
-  return book;
-}
+  let players = [];
+  let activePlayer = null;
+  let gameOver = false;
+  let result = null; // { type: "win", winner, line } | { type: "tie" }
 
-function removeBookFromLibrary(id) {
-  const index = myLibrary.findIndex((book) => book.id === id);
-  if (index !== -1) myLibrary.splice(index, 1);
-}
+  const printBoard = () => {
+    const b = Gameboard.getBoard().map((cell) => cell || " ");
+    console.log(
+      `\n ${b[0]} | ${b[1]} | ${b[2]}\n---+---+---\n ${b[3]} | ${b[4]} | ${b[5]}\n---+---+---\n ${b[6]} | ${b[7]} | ${b[8]}\n`
+    );
+  };
 
-// --- Display logic (DOM only) -----------------------------------------------
-const libraryEl = document.querySelector("#library");
-const emptyMessage = document.querySelector("#empty-message");
+  const findWinningLine = (board) =>
+    WIN_LINES.find(
+      ([a, b, c]) => board[a] !== "" && board[a] === board[b] && board[a] === board[c]
+    ) || null;
 
-function createCard(book) {
-  const card = document.createElement("article");
-  card.className = "card";
-  card.dataset.id = book.id;
+  const start = (nameX = "", nameO = "") => {
+    Gameboard.reset();
+    players = [
+      createPlayer(nameX.trim() || "Player X", "X"),
+      createPlayer(nameO.trim() || "Player O", "O"),
+    ];
+    activePlayer = players[0];
+    gameOver = false;
+    result = null;
+    printBoard();
+    console.log(`${activePlayer.name} (${activePlayer.mark}) starts.`);
+  };
 
-  const title = document.createElement("h2");
-  title.textContent = book.title;
+  // Returns the outcome: "invalid" | "continue" | "win" | "tie"
+  const playRound = (index) => {
+    if (gameOver || !activePlayer) return "invalid";
+    if (!Gameboard.placeMark(index, activePlayer.mark)) return "invalid";
 
-  const author = document.createElement("p");
-  author.textContent = `by ${book.author}`;
+    printBoard();
+    const board = Gameboard.getBoard();
+    const line = findWinningLine(board);
 
-  const pages = document.createElement("p");
-  pages.textContent = `${book.pages} pages`;
+    if (line) {
+      gameOver = true;
+      result = { type: "win", winner: activePlayer, line };
+      console.log(`${activePlayer.name} wins!`);
+      return "win";
+    }
 
-  const status = document.createElement("p");
-  status.className = book.read ? "status read" : "status unread";
-  status.textContent = book.read ? "Read" : "Not read yet";
+    if (board.every((cell) => cell !== "")) {
+      gameOver = true;
+      result = { type: "tie" };
+      console.log("It's a tie!");
+      return "tie";
+    }
 
-  const actions = document.createElement("div");
-  actions.className = "actions";
+    activePlayer = activePlayer === players[0] ? players[1] : players[0];
+    console.log(`${activePlayer.name}'s turn (${activePlayer.mark}).`);
+    return "continue";
+  };
 
-  const toggleBtn = document.createElement("button");
-  toggleBtn.type = "button";
-  toggleBtn.dataset.action = "toggle";
-  toggleBtn.textContent = book.read ? "Mark as unread" : "Mark as read";
+  const getActivePlayer = () => activePlayer;
+  const isGameOver = () => gameOver;
+  const getResult = () => result;
 
-  const removeBtn = document.createElement("button");
-  removeBtn.type = "button";
-  removeBtn.dataset.action = "remove";
-  removeBtn.className = "danger";
-  removeBtn.textContent = "Remove";
+  return { start, playRound, getActivePlayer, isGameOver, getResult };
+})();
 
-  actions.append(toggleBtn, removeBtn);
-  card.append(title, author, pages, status, actions);
-  return card;
-}
+// ---------------------------------------------------------------------------
+// DisplayController: everything that touches the DOM.
+// ---------------------------------------------------------------------------
+const DisplayController = (function () {
+  const boardEl = document.querySelector("#board");
+  const statusEl = document.querySelector("#status");
+  const setupForm = document.querySelector("#setup-form");
+  const inputX = document.querySelector("#player-x");
+  const inputO = document.querySelector("#player-o");
+  const startBtn = document.querySelector("#start-btn");
 
-function displayBooks() {
-  libraryEl.replaceChildren(...myLibrary.map(createCard));
-  emptyMessage.hidden = myLibrary.length > 0;
-}
+  const buildBoard = () => {
+    const cells = Gameboard.getBoard().map((_, index) => {
+      const cell = document.createElement("button");
+      cell.type = "button";
+      cell.className = "cell";
+      cell.dataset.index = index;
+      cell.setAttribute(
+        "aria-label",
+        `Row ${Math.floor(index / 3) + 1}, column ${(index % 3) + 1}`
+      );
+      return cell;
+    });
+    boardEl.replaceChildren(...cells);
+  };
 
-// Buttons inside cards: one listener on the container, book found via data-id
-libraryEl.addEventListener("click", (event) => {
-  const button = event.target.closest("button[data-action]");
-  if (!button) return;
+  const renderStatus = () => {
+    const result = GameController.getResult();
+    if (!result) {
+      const player = GameController.getActivePlayer();
+      statusEl.textContent = `${player.name}'s turn (${player.mark})`;
+    } else if (result.type === "win") {
+      statusEl.textContent = `${result.winner.name} wins! 🎉`;
+    } else {
+      statusEl.textContent = "It's a tie!";
+    }
+  };
 
-  const id = button.closest(".card").dataset.id;
+  const render = () => {
+    const board = Gameboard.getBoard();
+    const result = GameController.getResult();
+    const winLine = result && result.type === "win" ? result.line : [];
+    const gameOver = GameController.isGameOver();
 
-  if (button.dataset.action === "remove") {
-    removeBookFromLibrary(id);
-  } else if (button.dataset.action === "toggle") {
-    myLibrary.find((book) => book.id === id).toggleRead();
-  }
-  displayBooks();
-});
+    boardEl.querySelectorAll(".cell").forEach((cell, i) => {
+      cell.textContent = board[i];
+      cell.dataset.mark = board[i];
+      cell.disabled = board[i] !== "" || gameOver;
+      cell.classList.toggle("win", winLine.includes(i));
+    });
+    renderStatus();
+  };
 
-// --- New Book dialog ---------------------------------------------------------
-const dialog = document.querySelector("#book-dialog");
-const form = document.querySelector("#book-form");
+  const startGame = () => {
+    GameController.start(inputX.value, inputO.value);
+    startBtn.textContent = "Restart Game";
+    render();
+  };
 
-document.querySelector("#new-book-btn").addEventListener("click", () => {
-  form.reset();
-  dialog.showModal();
-});
+  boardEl.addEventListener("click", (event) => {
+    const cell = event.target.closest(".cell");
+    if (!cell) return;
+    GameController.playRound(Number(cell.dataset.index));
+    render();
+  });
 
-document.querySelector("#cancel-btn").addEventListener("click", () => dialog.close());
+  setupForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    startGame();
+  });
 
-form.addEventListener("submit", (event) => {
-  event.preventDefault(); // don't send the form to a server
+  const init = () => {
+    buildBoard();
+    startGame();
+    startBtn.textContent = "Start Game"; // first game is already running with default names
+  };
 
-  const data = new FormData(form);
-  addBookToLibrary(
-    data.get("title").trim(),
-    data.get("author").trim(),
-    Number(data.get("pages")),
-    data.get("read") === "on"
-  );
+  return { init };
+})();
 
-  displayBooks();
-  dialog.close();
-});
-
-// --- Sample data ------------------------------------------------------------
-addBookToLibrary("The Hobbit", "J.R.R. Tolkien", 295, true);
-addBookToLibrary("Atomic Habits", "James Clear", 320, false);
-addBookToLibrary("Clean Code", "Robert C. Martin", 464, false);
-displayBooks();
+DisplayController.init();
